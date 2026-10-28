@@ -1,113 +1,237 @@
-# 🚦 Traffic Intersection Intelligence System
+# 🚦 Smart City Traffic Intelligence & Adaptive Traffic Management System
+### Research-Grade Microscopic Simulation Powered by Eclipse SUMO, Computer Vision, AQI & 3D Web Visualization
 
-A simulation and analytics engine for **smart-city traffic management** at signalized intersections, calibrated to common Indian urban traffic patterns (Mumbai, Delhi, Bangalore, Chennai, Pune, and two generic city tiers).
-
-It models vehicle arrivals, lane congestion, and an **adaptive, congestion-aware traffic signal controller** that makes autonomous, real-time decisions about which approach gets green light priority — and measures how much that actually helps compared to a traditional fixed-timing signal.
-
-> Built as a fully synthetic, deterministic simulation (no real camera feeds or proprietary traffic data required) so it's easy to run, test, and extend.
+An integrated, research-oriented Smart City Traffic Intelligence System running primarily on **Apple Silicon (MacBook Air M4 / macOS)** combining:
+1. **Realistic Microscopic Traffic Simulation**: Eclipse SUMO TraCI engine with synthetic spatial fallback.
+2. **Autonomous Adaptive Signal Control**: Density and waiting-time controller with safe clearance and starvation prevention vs. fixed-time baseline.
+3. **Interactive 3D Visualization**: Procedural urban intersection, multi-class vehicles, cantilever signals, and dynamic camera presets in Three.js / React Three Fiber.
+4. **Geographic Road-Network Ingestion**: OpenStreetMap Leaflet interface, curated Indian urban corridors (Delhi ITO, Mumbai BKC, Bengaluru Silk Board), and OSM XML topology validator.
+5. **Air Quality (AQI) & Emissions Modeling**: CPCB National Air Quality Index (NAQI) stations, 24-hour diurnal trends, and microscopic tailpipe emissions (COPERT 5 / HBEFA 4.1).
+6. **CCTV Video Ingestion & Vehicle Analytics**: Privacy-preserving OpenCV vehicle detection, centroid tracking, directional counting lines, and demand calibration.
+7. **Rule-Based Traffic Incident Detection**: Detects sudden queue growth, stopped vehicle obstructions on green, and lane blockages with operator workflow.
+8. **Emergency Vehicle Priority Preemption**: Configurable ambulance scenario with safe transition clearance.
+9. **Experiment Laboratory**: SQLite persistent experiment runner, multi-scenario comparisons, and publication-ready CSV exports.
 
 ---
 
-## What it does
+## 🌟 Key Architecture & Capabilities
 
-- **Simulates vehicle flow** at a 4-way signalized intersection, tracking individual vehicles (two-wheelers, cars, autos, buses, trucks, cycles) with realistic Indian-traffic vehicle-mix ratios.
-- **Models congestion** per lane/direction using a density-ratio metric, classified into Free-Flow / Light / Moderate / Heavy / Severe levels.
-- **Runs an adaptive signal controller** — an autonomous agent that watches live queue lengths on all four approaches and decides, every tick, whether to extend or end the current green phase, instead of using a fixed timer.
-- **Quantifies the improvement** of adaptive vs. fixed-timing control on identical traffic conditions (same seed, same arrival pattern), reporting throughput, wait-time, and violation-rate deltas.
-- **Models 7 Indian city traffic profiles** (vehicle mix, peak hours, arrival rates) that are fully configurable and easy to extend with your own city.
+### 1. Eclipse SUMO Microscopic Simulation Engine
+- **Authoritative Ground Truth**: Eclipse SUMO simulates vehicle movement, Krauss car-following kinematics, lane assignments, junction conflict resolution, and signal state execution.
+- **Heterogeneous Indian Urban Traffic Mix**: Calibrated vehicle classes matching typical Indian urban conditions:
+  - **Two-Wheelers** (Motorcycles, scooters — nimble footprint, rapid acceleration)
+  - **Auto-Rickshaws** (Three-wheelers — moderate speed, compact geometry)
+  - **Passenger Cars** (Sedans/SUVs)
+  - **City Transit Buses** (11.0m length)
+  - **Commercial Heavy Trucks** (9.0m length)
+  - **Bicycles** (1.8m length)
+  - **Emergency Ambulances** (Preemptive high-priority vehicles)
+- **Continuous 3D Coordinate Mapping**: Vehicle positions, speeds, lane IDs, and headings are extracted via TraCI every step and projected into Three.js 3D world space:
+  $$\text{world}_x = \text{sumo}_x - 150.0$$
+  $$\text{world}_z = -(\text{sumo}_y - 150.0)$$
+  $$\text{heading\_deg} = (180.0 - \text{sumo\_angle}) \pmod{360.0}$$
+- **Zero Hallucinated Physics**: The frontend only renders vehicles and signals received from SUMO through TraCI; it does not invent vehicle trajectories or traffic light phases independently.
 
-## Why this matters
+### 2. Autonomous Adaptive Signal Controller
+- **Traffic Engineering Bounds**:
+  - Enforces minimum green duration ($15.0\text{s}$) to avoid driver confusion and pedestrian entrapment.
+  - Enforces maximum green duration ($65.0\text{s}$) to prevent cross-street starvation.
+  - Safe clearance sequence: Yellow clearance interval ($3.0\text{s}$) followed by an All-Red inter-green clearance ($1.0\text{s}$) before granting opposing green.
+  - Conflicting green movements are strictly prohibited by both network geometry and state-machine mutual exclusion.
+- **Hysteresis Anti-Oscillation**: Requires cross-traffic pressure to exceed active green pressure by a configured hysteresis threshold ($\times 1.35$) and queue difference before initiating a phase switch, preventing rapid toggling.
+- **Emergency Preemption**: Real-time preemption clears opposing greens upon detection of priority emergency vehicles.
+- **Explainable Audit Log**: Every decision (HOLD, TRANSITION) records timestamp, queue counts, accumulated wait times, and the engineering rationale.
 
-Indian intersections are usually run on **fixed-cycle signals** that give every direction the same green time regardless of how much traffic is actually waiting. An arterial road and a quiet side street get treated identically. This project demonstrates — with reproducible, seeded simulations — that a simple, explainable, congestion-aware policy can meaningfully cut wait times on the busier approach without needing a black-box model, expensive sensors, or real-time camera infrastructure beyond a queue-length estimate.
+### 3. Geographic Road Ingestion & OpenStreetMap Map Layer
+- Leaflet map view styled with CartoDB Dark Matter tiles and OpenStreetMap attribution.
+- Curated Indian urban arterials: **Delhi ITO Junction**, **Mumbai BKC Connector**, and **Bengaluru Silk Board**.
+- Map marker layers for signalized junctions, CCTV cameras, and air-quality monitoring stations.
+- In-browser OSM XML network validator assessing `<node>` topology, `<way>` segments, and highway attributes for SUMO `netconvert` compilation.
 
-## Quick start
+### 4. Air Quality (AQI) & Fleet Emissions Modeling
+- Provider-adapter architecture supporting CPCB reference stations and OpenAQ API v3.
+- Official Indian Central Pollution Control Board (CPCB) NAQI formula calculating sub-indices for PM2.5, PM10, NO2, SO2, CO, and O3 with standard color-coding.
+- 24-hour diurnal pollutant trend charts.
+- Microscopic vehicle tailpipe emissions engine calculating instantaneous rates (CO₂ kg/h, NOx g/h, PM g/h, fuel l/h, cumulative CO₂) using COPERT 5 / HBEFA 4.1 factors with speed-dependent idling penalties.
+- Explicit scientific disclosure distinguishing modeled tailpipe estimates from ambient physical air sensor measurements.
+
+### 5. CCTV Video Ingestion & Computer Vision Analytics
+- Multipart video upload supporting MP4, MOV, and AVI recordings with size limits.
+- Background asynchronous OpenCV processing using MOG2 background subtraction and Euclidean Centroid Tracking.
+- Directional virtual counting lines and vehicle classification (two-wheeler, auto-rickshaw, car, bus/truck).
+- Calibrated speed and stopline queue-length estimation.
+- Camera-to-SUMO approach mapping interface (North, South, East, West).
+- Demand calibration toggle allowing camera-observed traffic densities to adjust simulated controller demand.
+- Privacy-preserving architecture: Strictly NO facial recognition or license-plate storage.
+
+### 6. Traffic Incident Detection & Emergency Preemption
+- Explainable rule-based anomaly detectors:
+  - Sudden queue surges ($\ge 5$ vehicle accumulation spike)
+  - Stationary vehicle obstruction during active green phases ($>25\text{s}$)
+  - Abnormal speed collapses and travel lane blockages
+- Operator workflow: Detected $\to$ Confirmed $\to$ Resolved or Dismissed (false positive).
+- Operator anomaly injection tool to test adaptive controller rerouting and delay accumulation.
+- Dedicated emergency vehicle preemption scenario testing travel time improvements.
+
+### 7. Experiment Laboratory & SQLite Persistence
+- Repeatable multi-scenario benchmark runner comparing Fixed-Time vs. Adaptive Density control under identical seeds and demand levels.
+- SQLite database (`data/smart_traffic.db`) storing all experiment runs, configurations, and metrics.
+- Publication-ready CSV report generation and download.
+
+
+---
+
+## 🏗️ System Architecture
+
+```
+traffic-intersection-intelligence/
+├── backend/                               # FastAPI + WebSockets Backend
+│   ├── main.py                            # ASGI application & lifespan lifecycle
+│   ├── api/
+│   │   ├── routes.py                      # REST endpoints & CSV export
+│   │   └── websocket.py                   # /ws/simulation streaming
+│   ├── models/
+│   │   └── schemas.py                     # Pydantic schemas (Vehicle3D, SignalState3D, etc.)
+│   ├── services/
+│   │   ├── simulation_service.py          # Unified SUMO / Synthetic orchestrator
+│   │   └── spatial_engine.py              # Spatial fallback engine
+│   └── tests/                             # API, WebSocket, and robustness tests (21 tests)
+│
+├── traffic-intelligence-system/           # Core Python package & SUMO files
+│   ├── src/traffic_intel/
+│   │   ├── sumo/                          # SUMO microscopic network definitions
+│   │   │   ├── intersection.nod.xml       # Intersection nodes & priority points
+│   │   │   ├── intersection.edg.xml       # 2-lane arterial road links
+│   │   │   ├── intersection.net.xml       # Compiled SUMO network (netconvert)
+│   │   │   ├── routes.rou.xml             # Heterogeneous vehicle types & calibrated flows
+│   │   │   ├── simulation.sumocfg         # Authoritative SUMO configuration
+│   │   │   └── NETWORK_SPECIFICATION.md   # Mapped facts vs synthetic assumptions
+│   │   ├── sumo_adapter.py                # TraCI communication adapter (SumoSimulator)
+│   │   ├── sumo_controller.py             # SumoAdaptiveController & FixedTimeController
+│   │   ├── models.py                      # Vehicle and direction data models
+│   │   ├── city_profiles.py               # 7 Indian urban profiles
+│   │   ├── signal_control.py              # Signal phase logic
+│   │   ├── simulator.py                   # Original simulation core
+│   │   └── analytics.py                   # Congestion analysis
+│   └── tests/                             # Unit tests (61 tests)
+│
+├── frontend/                              # React 19 + TypeScript + Vite + Three.js
+│   ├── src/
+│   │   ├── components/                    # 3D Viewport, Road, Signals, Vehicles
+│   │   ├── dashboard/                     # Telemetry cards, Control deck, Modal
+│   │   ├── hooks/                         # useSimulationSocket (WebSocket & REST)
+│   │   └── types/                         # TypeScript interfaces
+│   └── package.json
+│
+└── data/experiments/                      # Exported CSV experiment results
+```
+
+---
+
+## 🚀 Quickstart & Installation (macOS Apple Silicon & Linux)
+
+### Prerequisites
+- **macOS** (Apple Silicon M1/M2/M3/M4) or Linux
+- **Python 3.11+** (Python 3.13 supported)
+- **Node.js 18+** and **npm**
+
+### Step 1: Python Environment & SUMO Installation
+
+Eclipse SUMO provides native Apple Silicon arm64 wheels on PyPI:
 
 ```bash
-git clone https://github.com/<your-username>/traffic-intersection-intelligence.git
-cd traffic-intersection-intelligence
+cd traffic-intelligence-system
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies including native Eclipse SUMO, TraCI, and sumolib
+pip install eclipse-sumo sumo-data sumolib traci
+pip install -e .
 pip install -r requirements.txt
-
-# List available Indian city traffic profiles
-python -m traffic_intel.cli cities
-
-# Run a 20-minute simulation for Mumbai
-python -m traffic_intel.cli simulate --city mumbai --minutes 20
-
-# Compare fixed-timing vs adaptive signal control under arterial-road load
-python -m traffic_intel.cli compare --city mumbai --minutes 50 --asymmetric --seed 1
+pip install fastapi "uvicorn[standard]" websockets pytest pytest-asyncio
 ```
 
-### As a library
+### Step 2: Verify SUMO Installation (Phase A Proof of Concept)
 
-```python
-from traffic_intel import IntersectionSimulator, CongestionAnalyzer
-from traffic_intel.city_profiles import get_city_profile
-
-profile = get_city_profile("mumbai")
-sim = IntersectionSimulator(city_profile=profile, seed=42)
-sim.signal.enable_adaptive(lambda d: sum(l.queue_length for l in sim.lanes[d]))
-
-analyzer = CongestionAnalyzer(tick_seconds=sim.tick_seconds)
-for snapshot in sim.run(n_ticks=900):
-    analyzer.ingest(snapshot)
-
-report = analyzer.analyze()
-print(report.overall_congestion, report.throughput_per_min)
-```
-
-## Architecture
-
-```
-src/traffic_intel/
-├── models.py          # Vehicle, Lane, Direction — core data structures
-├── city_profiles.py   # Indian city traffic-pattern configs (vehicle mix, peak hours, arrival rates)
-├── simulator.py        # Tick-based intersection simulation engine (vehicle spawning + movement)
-├── signal_control.py   # Fixed-timing + adaptive congestion-aware signal controller
-├── analytics.py         # Congestion classification, throughput, wait-time, hourly breakdown
-└── cli.py                # Command-line interface (simulate / compare / cities)
-
-tests/                   # 42 pytest unit tests covering all modules
-notebooks/                # Demo notebook: city comparison + adaptive vs fixed benchmark
-```
-
-## How the adaptive controller works
-
-The signal controller is a small **autonomous decision-making agent**: every simulation tick, it observes the current queue length on each of the four approaches and decides whether to keep the active phase green or switch. The logic is intentionally simple and auditable rather than a black box:
-
-1. A minimum green time is always honored (no flickering, no starving a direction completely).
-2. Once the minimum has elapsed, it compares the active phase's total queue against the waiting phase's queue.
-3. If the active phase is meaningfully busier (a margin that scales with total traffic present), it extends green. Otherwise it yields.
-4. A hard maximum green time prevents one direction from monopolizing the signal indefinitely.
-
-### Measured result (Mumbai profile, arterial-road scenario, 50 min simulated, seed=1)
-
-| Metric | Fixed-Timing | Adaptive | Change |
-|---|---|---|---|
-| Busy approach (N/S) wait time | 14.4s | 13.0s | **−9.7%** |
-| Side-street (E/W) wait time | 17.9s | 21.9s | +22% (traded off) |
-| Signal violations | 32 | 31 | −3% |
-
-This is an honest trade-off, not a free win: the adaptive controller reallocates green time toward the busier direction, which is exactly what a real-world demand-responsive signal does. Run `python -m traffic_intel.cli compare --asymmetric` yourself to reproduce this with any city profile and seed.
-
-## Running tests
+Run the standalone verification demo:
 
 ```bash
-pip install pytest
-pytest tests/ -v
+python traffic-intelligence-system/src/traffic_intel/sumo_adapter.py
 ```
 
-42/42 tests pass, covering vehicle models, city profiles, signal control (fixed + adaptive), the simulation engine, and analytics.
+Expected output:
+```
+=== SUMO Integration Verification Demo ===
+Starting SUMO simulation engine...
+SUMO started! Advancing 50 steps (step_length=0.1s)...
+Step 010 (Time 1.0s): Vehicles=14, Queues={'north': 0, 'south': 0, 'east': 0, 'west': 0}, ActivePhase=NS_GREEN, MeanSpeed=42.8 km/h
+...
+Closing simulation cleanly...
+SUMO Proof-of-Concept verification successful!
+```
 
-## Extending this project
+### Step 3: Run the Full Test Suite (82 Tests)
 
-- **Add a new city**: add a `CityProfile` entry in `city_profiles.py` with your own vehicle mix and arrival rates.
-- **Add a CV pipeline**: swap the simulated `Vehicle` spawner for a real object-tracking pipeline (e.g. YOLO + a tracker) feeding the same `Lane`/`Vehicle` data structures — the analytics and signal-control layers don't need to change.
-- **Add a smarter controller**: implement an alternative policy (e.g. reinforcement learning) against the same `SignalController` interface and benchmark it with `CongestionAnalyzer.compare_to_baseline`.
+Run all tests across both backend and core packages:
 
-## Disclaimer
+```bash
+PYTHONPATH=. traffic-intelligence-system/.venv/bin/pytest backend/tests/ traffic-intelligence-system/tests/
+```
+All **82 tests** will execute and pass in ~30 seconds.
 
-All city traffic figures (vehicle mix, arrival rates, peak hours, violation rates) are **illustrative approximations** meant to produce realistic-feeling simulations, not measured municipal data. This is a simulation and decision-policy research tool, not a deployed traffic-control system.
+### Step 4: Start the Backend Server
 
-## License
+```bash
+# From workspace root:
+PYTHONPATH=. traffic-intelligence-system/.venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+```
+API Documentation will be available at: `http://127.0.0.1:8000/docs`
 
-MIT — see [LICENSE](LICENSE).
+### Step 5: Start the 3D Frontend
+
+In a separate terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+Open your browser at: `http://127.0.0.1:5173`
+
+---
+
+## 🔬 Research Experiments & Empirical Validation
+
+To execute a controlled experiment from the command line:
+
+```bash
+PYTHONPATH=. traffic-intelligence-system/.venv/bin/python -c "
+from backend.services.simulation_service import simulation_service
+res = simulation_service.run_sumo_comparison(duration_s=120.0, seed=42)
+print('Fixed throughput/hr:', res.fixed.throughput_veh_per_hr, 'Mean wait:', res.fixed.mean_waiting_time_s)
+print('Adaptive throughput/hr:', res.adaptive.throughput_veh_per_hr, 'Mean wait:', res.adaptive.mean_waiting_time_s)
+print('Reduction in delay:', res.delta_waiting_time_pct, '%')
+print('CSV exported to:', res.csv_export_path)
+"
+```
+
+Results are saved to `data/experiments/sumo_experiment_<timestamp>.csv` and can be downloaded directly from the UI or via `GET /api/simulation/export-csv`.
+
+---
+
+## 📜 Network Specification: Mapped Facts vs. Synthetic Assumptions
+
+| Parameter | Type | Detail |
+|---|---|---|
+| **Road Width & Geometry** | Mapped Fact | Standard 3.5m lane width, 1.0m median, 150m arterial links. |
+| **Microscopic Kinematics**| Mapped Fact | Krauss car-following, acceleration, braking, and headway maintenance computed by SUMO engine. |
+| **Signal Exclusion** | Mapped Fact | Conflict-free signal states enforced by both SUMO TLS logic and Python state-machine. |
+| **Vehicle Footprints** | Mapped Fact | Two-wheelers (2.2m), Cars (4.5m), Auto-rickshaws (3.2m), Buses (11.0m). |
+| **Arrival Rates** | Calibrated Assumption | Stochastic insertion rates derived from representative Indian city survey ranges (Delhi, Mumbai, Bengaluru). Never represented as raw field loop detector counts. |
+
+---
+
+## 🧪 License & Attribution
+- Eclipse SUMO is licensed under the [Eclipse Public License v2.0 (EPL-2.0)](https://www.eclipse.org/legal/epl-2.0/).
+- The Traffic Intersection Intelligence System code is open-source under the MIT License.
+# System-s-MDM
